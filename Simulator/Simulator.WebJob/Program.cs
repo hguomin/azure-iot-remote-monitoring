@@ -27,6 +27,9 @@ namespace Microsoft.Azure.Devices.Applications.RemoteMonitoring.Simulator
         private const string SHUTDOWN_FILE_ENV_VAR = "WEBJOBS_SHUTDOWN_FILE";
         private static string _shutdownFile;
         private static Timer _timer;
+        private static StorageLock _lock;
+        private static readonly TimeSpan _heartbeat = TimeSpan.FromMinutes(1);
+        private static readonly TimeSpan _timeout = TimeSpan.FromMinutes(5);
 
         static void Main(string[] args)
         {
@@ -58,14 +61,25 @@ namespace Microsoft.Azure.Devices.Applications.RemoteMonitoring.Simulator
                     }
                 }
 
-                if (!shutdownSignalReceived)
+                var configProvider = new ConfigurationProvider();
+
+                _lock = new StorageLock(
+                    configProvider.GetConfigurationSettingValue("device.StorageConnectionString"),
+                    "SimulatorLock",
+                    _heartbeat,
+                    _timeout,
+                    cancellationTokenSource.Token);
+
+                if (!shutdownSignalReceived && _lock.Acquire())
                 {
                     BuildContainer();
 
                     StartDataInitializationAsNeeded();
-                    StartSimulator();
+                    StartSimulator(configProvider);
 
                     RunAsync().Wait();
+
+                    _lock.Release();
                 }
             }
             catch (Exception ex)
@@ -114,11 +128,10 @@ namespace Microsoft.Azure.Devices.Applications.RemoteMonitoring.Simulator
             _timer = new Timer(CreateInitialDataAsNeeded, null, 10000, Timeout.Infinite);
         }
 
-        static void StartSimulator()
+        static void StartSimulator(IConfigurationProvider configProvider)
         {
             // Dependencies to inject into the Bulk Device Tester
             var logger = new TraceLogger();
-            var configProvider = new ConfigurationProvider();
             var telemetryFactory = new CoolerTelemetryFactory(logger);
 
             var serializer = new JsonSerialize();
@@ -146,12 +159,12 @@ namespace Microsoft.Azure.Devices.Applications.RemoteMonitoring.Simulator
 
         static async Task RunAsync()
         {
-            while (!cancellationTokenSource.Token.IsCancellationRequested)
+            while (!cancellationTokenSource.Token.IsCancellationRequested && await _lock.Renew())
             {
                 Trace.TraceInformation("Running");
                 try
                 {
-                    await Task.Delay(TimeSpan.FromMinutes(5), cancellationTokenSource.Token);
+                    await Task.Delay(_heartbeat, cancellationTokenSource.Token);
                 }
                 catch (TaskCanceledException) { }
             }
