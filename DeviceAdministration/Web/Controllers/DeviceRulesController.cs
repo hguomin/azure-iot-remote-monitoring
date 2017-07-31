@@ -1,13 +1,14 @@
 ﻿using System.Collections.Generic;
+using System.Globalization;
 using System.Threading.Tasks;
 using System.Web.Mvc;
+using GlobalResources;
+using Microsoft.Azure.Devices.Applications.RemoteMonitoring.Common.Models;
 using Microsoft.Azure.Devices.Applications.RemoteMonitoring.DeviceAdmin.Infrastructure.BusinessLogic;
 using Microsoft.Azure.Devices.Applications.RemoteMonitoring.DeviceAdmin.Infrastructure.Models;
-using Microsoft.Azure.Devices.Applications.RemoteMonitoring.DeviceAdmin.Web.Helpers;
 using Microsoft.Azure.Devices.Applications.RemoteMonitoring.DeviceAdmin.Web.Models;
 using Microsoft.Azure.Devices.Applications.RemoteMonitoring.DeviceAdmin.Web.Security;
-using Microsoft.Azure.Devices.Applications.RemoteMonitoring.Common.Models;
-using GlobalResources;
+using Newtonsoft.Json;
 
 namespace Microsoft.Azure.Devices.Applications.RemoteMonitoring.DeviceAdmin.Web.Controllers
 {
@@ -91,8 +92,25 @@ namespace Microsoft.Azure.Devices.Applications.RemoteMonitoring.DeviceAdmin.Web.
         [ValidateAntiForgeryToken]
         public async Task<ActionResult> UpdateRuleEnabledState(EditDeviceRuleModel ruleModel)
         {
-            TableStorageResponse<DeviceRule> response = await _deviceRulesLogic.UpdateDeviceRuleEnabledStateAsync(ruleModel.DeviceID, 
-                ruleModel.RuleId, ruleModel.EnabledState);
+            TableStorageResponse<DeviceRule> response = await _deviceRulesLogic.UpdateDeviceRuleEnabledStateAsync(
+                ruleModel.DeviceID, 
+                ruleModel.RuleId, 
+                ruleModel.EnabledState);
+
+            return BuildRuleUpdateResponse(response);
+        }
+
+        /// <summary>
+        /// Delete the given rule for a device
+        /// </summary>
+        /// <param name="ruleModel"></param>
+        /// <returns></returns>
+        [HttpDelete]
+        [RequirePermission(Permission.DeleteRules)]
+        [ValidateAntiForgeryToken]
+        public async Task<ActionResult> DeleteDeviceRule(string deviceId, string ruleId)
+        {
+            TableStorageResponse<DeviceRule> response = await _deviceRulesLogic.DeleteDeviceRuleAsync(deviceId, ruleId);
 
             return BuildRuleUpdateResponse(response);
         }
@@ -102,16 +120,35 @@ namespace Microsoft.Azure.Devices.Applications.RemoteMonitoring.DeviceAdmin.Web.
             switch (response.Status)
             {
                 case TableStorageResponseStatus.Successful:
-                    return Json(new { success = true });
+                    return Json(new 
+                    { 
+                        success = true
+                    });
                 case TableStorageResponseStatus.ConflictError:
-                    return Json(new { error = Strings.TableDataSaveConflictErrorMessage });
+                    return Json(new
+                    {
+                        error = Strings.TableDataSaveConflictErrorMessage,
+                        entity = JsonConvert.SerializeObject(response.Entity)
+                    });
                 case TableStorageResponseStatus.DuplicateInsert:
-                    return Json(new { error = Strings.RuleAlreadyAddedError });
+                    return Json(new
+                    {
+                        error = Strings.RuleAlreadyAddedError,
+                        entity = JsonConvert.SerializeObject(response.Entity)
+                    });
                 case TableStorageResponseStatus.NotFound:
-                    return Json(new { error = Strings.UnableToRetrieveRuleFromService });
+                    return Json(new
+                    {
+                        error = Strings.UnableToRetrieveRuleFromService,
+                        entity = JsonConvert.SerializeObject(response.Entity)
+                    });
                 case TableStorageResponseStatus.UnknownError:
                 default:
-                    return Json(new { error = Strings.RuleUpdateError });
+                    return Json(new
+                    {
+                        error = Strings.RuleUpdateError,
+                        entity = JsonConvert.SerializeObject(response.Entity)
+                    });
             }
         }
 
@@ -142,9 +179,9 @@ namespace Microsoft.Azure.Devices.Applications.RemoteMonitoring.DeviceAdmin.Web.
             DeviceRule ruleModel = await _deviceRulesLogic.GetDeviceRuleOrDefaultAsync(deviceId, ruleId);
             Dictionary<string, List<string>> availableFields = await _deviceRulesLogic.GetAvailableFieldsForDeviceRuleAsync(ruleModel.DeviceID, ruleModel.RuleId);
 
-            List<SelectListItem> availableDataFields = MvcDataHelper.ConvertStringListToSelectList(availableFields["availableDataFields"]);
-            List<SelectListItem> availableOperators = MvcDataHelper.ConvertStringListToSelectList(availableFields["availableOperators"]);
-            List<SelectListItem> availableRuleOutputs = MvcDataHelper.ConvertStringListToSelectList(availableFields["availableRuleOutputs"]);
+            List<SelectListItem> availableDataFields = this.ConvertStringListToSelectList(availableFields["availableDataFields"]);
+            List<SelectListItem> availableOperators = this.ConvertStringListToSelectList(availableFields["availableOperators"]);
+            List<SelectListItem> availableRuleOutputs = this.ConvertStringListToSelectList(availableFields["availableRuleOutputs"]);
 
             editModel = CreateEditModelFromDeviceRule(ruleModel);
             editModel.AvailableDataFields = availableDataFields;
@@ -152,6 +189,20 @@ namespace Microsoft.Azure.Devices.Applications.RemoteMonitoring.DeviceAdmin.Web.
             editModel.AvailableRuleOutputs = availableRuleOutputs;
 
             return View("EditDeviceRuleProperties", editModel);
+        }
+
+        /// <summary>
+        /// Navigate to the DeleteRuleProperties screen
+        /// </summary>
+        /// <param name="deviceId"></param>
+        /// <param name="ruleId"></param>
+        /// <returns></returns>
+        [RequirePermission(Permission.DeleteRules)]
+        public async Task<ActionResult> RemoveRule(string deviceId, string ruleId)
+        {
+            DeviceRule ruleModel = await _deviceRulesLogic.GetDeviceRuleOrDefaultAsync(deviceId, ruleId);
+            EditDeviceRuleModel editModel = CreateEditModelFromDeviceRule(ruleModel);
+            return View("RemoveDeviceRule", editModel);
         }
 
         private DeviceRule CreateDeviceRuleFromEditModel(EditDeviceRuleModel editModel)
@@ -165,7 +216,11 @@ namespace Microsoft.Azure.Devices.Applications.RemoteMonitoring.DeviceAdmin.Web.
             rule.RuleOutput = editModel.RuleOutput;
             if (!string.IsNullOrWhiteSpace(editModel.Threshold))
             {
-                rule.Threshold = double.Parse(editModel.Threshold);
+                rule.Threshold =
+                    double.Parse(
+                        editModel.Threshold,
+                        NumberStyles.Float,
+                        CultureInfo.CurrentCulture);
             }
 
             return rule;
@@ -187,6 +242,19 @@ namespace Microsoft.Azure.Devices.Applications.RemoteMonitoring.DeviceAdmin.Web.
             }
 
             return editModel;
+        }
+        private List<SelectListItem> ConvertStringListToSelectList(List<string> stringList)
+        {
+            List<SelectListItem> result = new List<SelectListItem>();
+            foreach (string item in stringList)
+            {
+                SelectListItem selectItem = new SelectListItem();
+                selectItem.Value = item;
+                selectItem.Text = item;
+                result.Add(selectItem);
+            }
+
+            return result;
         }
     }
 }

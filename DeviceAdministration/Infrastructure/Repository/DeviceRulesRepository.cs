@@ -16,27 +16,32 @@ using Newtonsoft.Json;
 namespace Microsoft.Azure.Devices.Applications.RemoteMonitoring.DeviceAdmin.Infrastructure.Repository
 {
     /// <summary>
-    /// Class for working with persistence of Device Rules data
+    /// Class for working with persistence of Device Rules data.
+    /// Note that we store device rules in an Azure table, but we also need
+    /// to save a different format as a blob for the rules ASA job to pickup.
+    /// The ASA rules job uses that blob as ref data and joins the most 
+    /// recent version to the incoming data stream from the IoT Hub.
+    /// (The ASA job checks for new rules blobs every minute at a well-known path)
     /// </summary>
     public class DeviceRulesRepository : IDeviceRulesRepository
     {
-        private IConfigurationProvider _configurationProvider;
-
+        private readonly string _blobName;
         private readonly string _storageAccountConnectionString;
         private readonly string _deviceRulesBlobStoreContainerName;
         private readonly string _deviceRulesNormalizedTableName;
-        private readonly string _blobName;
+        private readonly IAzureTableStorageClient _azureTableStorageClient;
+        private readonly IBlobStorageClient _blobStorageClient;
 
         private DateTimeFormatInfo _formatInfo;
 
-        public DeviceRulesRepository(IConfigurationProvider configurationProvider)
+        public DeviceRulesRepository(IConfigurationProvider configurationProvider, IAzureTableStorageClientFactory tableStorageClientFactory, IBlobStorageClientFactory blobStorageClientFactory)
         {
-            this._configurationProvider = configurationProvider;
-
             _storageAccountConnectionString = configurationProvider.GetConfigurationSettingValue("device.StorageConnectionString");
             _deviceRulesBlobStoreContainerName = configurationProvider.GetConfigurationSettingValue("DeviceRulesStoreContainerName");
             _deviceRulesNormalizedTableName = configurationProvider.GetConfigurationSettingValue("DeviceRulesTableName");
+            _azureTableStorageClient = tableStorageClientFactory.CreateClient(_storageAccountConnectionString, _deviceRulesNormalizedTableName);
             _blobName = configurationProvider.GetConfigurationSettingValue("AsaRefDataRulesBlobName");
+            _blobStorageClient = blobStorageClientFactory.CreateClient(_storageAccountConnectionString, _deviceRulesBlobStoreContainerName);
 
             // note: InvariantCulture is read-only, so use en-US and hardcode all relevant aspects
             CultureInfo culture = CultureInfo.CreateSpecificCulture("en-US");
@@ -72,17 +77,16 @@ namespace Microsoft.Azure.Devices.Applications.RemoteMonitoring.DeviceAdmin.Infr
         /// <returns></returns>
         public async Task<DeviceRule> GetDeviceRuleAsync(string deviceId, string ruleId)
         {
-            var deviceRulesTable = await AzureTableStorageHelper.GetTableAsync(_storageAccountConnectionString, _deviceRulesNormalizedTableName);
             TableOperation query = TableOperation.Retrieve<DeviceRuleTableEntity>(deviceId, ruleId);
 
             TableResult response = await Task.Run(() =>
-                deviceRulesTable.Execute(query)
+                _azureTableStorageClient.Execute(query)
             );
 
             DeviceRule result = BuildRuleFromTableEntity((DeviceRuleTableEntity)response.Result);
             return result;
         }
-        
+
         /// <summary>
         /// Retrieve all rules from the database that have been defined for a single device.
         /// If none exist an empty list will be returned. This method guarantees a non-null
@@ -92,12 +96,11 @@ namespace Microsoft.Azure.Devices.Applications.RemoteMonitoring.DeviceAdmin.Infr
         /// <returns></returns>
         public async Task<List<DeviceRule>> GetAllRulesForDeviceAsync(string deviceId)
         {
-            var deviceRulesTable = await AzureTableStorageHelper.GetTableAsync(_storageAccountConnectionString, _deviceRulesNormalizedTableName);
             TableQuery<DeviceRuleTableEntity> query = new TableQuery<DeviceRuleTableEntity>().
                 Where(TableQuery.GenerateFilterCondition("PartitionKey", QueryComparisons.Equal, deviceId));
-
+            var devicesResult = await _azureTableStorageClient.ExecuteQueryAsync(query);
             List<DeviceRule> result = new List<DeviceRule>();
-            foreach(DeviceRuleTableEntity entity in deviceRulesTable.ExecuteQuery(query))
+            foreach (DeviceRuleTableEntity entity in devicesResult)
             {
                 result.Add(BuildRuleFromTableEntity(entity));
             }
@@ -111,44 +114,67 @@ namespace Microsoft.Azure.Devices.Applications.RemoteMonitoring.DeviceAdmin.Infr
         /// <returns></returns>
         public async Task<TableStorageResponse<DeviceRule>> SaveDeviceRuleAsync(DeviceRule updatedRule)
         {
-            DeviceRuleTableEntity incomingEntity = 
-                new DeviceRuleTableEntity(updatedRule.DeviceID, updatedRule.RuleId)
+            DeviceRuleTableEntity incomingEntity = BuildTableEntityFromRule(updatedRule);
+
+            TableStorageResponse<DeviceRule> result =
+                await _azureTableStorageClient.DoTableInsertOrReplaceAsync<DeviceRule, DeviceRuleTableEntity>(incomingEntity, BuildRuleFromTableEntity);
+
+            if (result.Status == TableStorageResponseStatus.Successful)
             {
-                DataField = updatedRule.DataField,
-                Threshold = (double)updatedRule.Threshold,
-                Enabled = updatedRule.EnabledState,
-                RuleOutput = updatedRule.RuleOutput
-            };
-            
-            if(!string.IsNullOrWhiteSpace(updatedRule.Etag))
-            {
-                incomingEntity.ETag = updatedRule.Etag;
+                // Build up a new blob to push up for ASA job ref data
+                List<DeviceRuleBlobEntity> blobList = await BuildBlobEntityListFromTableRows();
+                await PersistRulesToBlobStorageAsync(blobList);
             }
 
-            TableStorageResponse<DeviceRule> result = 
-                await AzureTableStorageHelper.DoTableInsertOrReplace<DeviceRule, DeviceRuleTableEntity>(incomingEntity, BuildRuleFromTableEntity, 
-                _storageAccountConnectionString, _deviceRulesNormalizedTableName); 
+            return result;
+        }
 
-            // Build up a new blob to push up
-            List<DeviceRuleBlobEntity> blobList = await BuildBlobEntityListFromTableRows();
-            await PersistRulesToBlobStorageAsync(blobList);
+        public async Task<TableStorageResponse<DeviceRule>> DeleteDeviceRuleAsync(DeviceRule ruleToDelete)
+        {
+            DeviceRuleTableEntity incomingEntity = BuildTableEntityFromRule(ruleToDelete);
+
+            TableStorageResponse<DeviceRule> result =
+                await _azureTableStorageClient.DoDeleteAsync<DeviceRule, DeviceRuleTableEntity>(incomingEntity, BuildRuleFromTableEntity);
+
+            if (result.Status == TableStorageResponseStatus.Successful)
+            {
+                // Build up a new blob to push up for ASA job ref data
+                List<DeviceRuleBlobEntity> blobList = await BuildBlobEntityListFromTableRows();
+                await PersistRulesToBlobStorageAsync(blobList);
+            }
 
             return result;
         }
 
         private async Task<IEnumerable<DeviceRuleTableEntity>> GetAllRulesFromTable()
         {
-            var deviceRulesTable = await AzureTableStorageHelper.GetTableAsync(_storageAccountConnectionString, _deviceRulesNormalizedTableName);
             TableQuery<DeviceRuleTableEntity> query = new TableQuery<DeviceRuleTableEntity>();
 
-            return await Task.Run(() =>
-                deviceRulesTable.ExecuteQuery(query)
-            );
+            return await _azureTableStorageClient.ExecuteQueryAsync(query);
+        }
+
+        private DeviceRuleTableEntity BuildTableEntityFromRule(DeviceRule incomingRule)
+        {
+            DeviceRuleTableEntity tableEntity =
+                new DeviceRuleTableEntity(incomingRule.DeviceID, incomingRule.RuleId)
+                {
+                    DataField = incomingRule.DataField,
+                    Threshold = (double)incomingRule.Threshold,
+                    Enabled = incomingRule.EnabledState,
+                    RuleOutput = incomingRule.RuleOutput
+                };
+
+            if (!string.IsNullOrWhiteSpace(incomingRule.Etag))
+            {
+                tableEntity.ETag = incomingRule.Etag;
+            }
+
+            return tableEntity;
         }
 
         private DeviceRule BuildRuleFromTableEntity(DeviceRuleTableEntity tableEntity)
         {
-            if(tableEntity == null)
+            if (tableEntity == null)
             {
                 return null;
             }
@@ -227,15 +253,13 @@ namespace Microsoft.Azure.Devices.Applications.RemoteMonitoring.DeviceAdmin.Infr
         private const int blobSaveMinutesInTheFuture = 2;
         private async Task PersistRulesToBlobStorageAsync(List<DeviceRuleBlobEntity> blobList)
         {
-            CloudBlobContainer container = await BlobStorageHelper.BuildBlobContainerAsync(_storageAccountConnectionString, _deviceRulesBlobStoreContainerName);
-
             string updatedJson = JsonConvert.SerializeObject(blobList);
             DateTime saveDate = DateTime.UtcNow.AddMinutes(blobSaveMinutesInTheFuture);
             string dateString = saveDate.ToString("d", _formatInfo);
             string timeString = saveDate.ToString("t", _formatInfo);
+            string blobName = string.Format(@"{0}\{1}\{2}", dateString, timeString, _blobName);
 
-            CloudBlockBlob blockBlob = container.GetBlockBlobReference(string.Format(@"{0}\{1}\{2}", dateString, timeString, _blobName));
-            await blockBlob.UploadTextAsync(updatedJson);
+            await _blobStorageClient.UploadTextAsync(blobName, updatedJson);
         }
     }
 }

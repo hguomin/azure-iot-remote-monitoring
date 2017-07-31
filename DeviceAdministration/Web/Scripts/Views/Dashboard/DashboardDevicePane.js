@@ -22,7 +22,6 @@
             settings.selectionDropDown.change(
                 function () {
                     if (this.value) {
-                        $('#loadingElement').show();
                         updateDeviceId(this.value);
                     }
                 });
@@ -54,9 +53,9 @@
 
                         if (telemetryGridRefreshData) {
                             if (data.deviceTelemetryModels) {
-                                telemetryGridRefreshData(data.deviceTelemetryModels);
+                                telemetryGridRefreshData(data.deviceTelemetryModels, data.deviceTelemetryFields);
                             } else {
-                                telemetryGridRefreshData([]);
+                                telemetryGridRefreshData([], data.deviceTelemetryFields);
                             }
                         }
 
@@ -89,6 +88,7 @@
         };
 
         var updateDeviceId = function updateDeviceId(deviceId) {
+            $('#loadingElement').show();
             if (timerId) {
                 clearTimeout(timerId);
                 timerId = null;
@@ -97,7 +97,7 @@
             if (deviceId === '') {
 
                 currentDeviceId = '';
-                telemetryGridRefreshData([]);
+                telemetryGridRefreshData([], null);
                 telemetryHistoryRefreshData(0.0, 0.0, 0.0);
                 $('#loadingElement').hide();
 
@@ -108,12 +108,25 @@
                 currentDeviceId = deviceId;
 
                 refreshData();
+                IoTApp.AlertHistoryTable.setSelectedDevice(deviceId);
             }
         };
 
+        var setSelectedDevice = function (deviceId) {
+            $('#deviceSelection > option').each(function () {
+                if (this.value === deviceId) {
+                    $(this).prop("selected", true);
+                } else {
+                    $(this).removeProp("selected");
+                }
+            });
+            updateDeviceId(deviceId);
+        }
+
         return {
             init: init,
-            updateDeviceId: updateDeviceId
+            updateDeviceId: updateDeviceId,
+            setSelectedDevice: setSelectedDevice
         };
     },
     [jQuery, powerbi]);

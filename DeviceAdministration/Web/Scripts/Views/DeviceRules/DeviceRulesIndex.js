@@ -53,11 +53,11 @@
     var changeRuleStatus = function () {
         var tableStatus = self.dataTable;
 
-        var cells_status_false = tableStatus.cells(".table_rules_status:contains('false')").nodes();
+        var cells_status_false = tableStatus.cells(".table_status:contains('false')").nodes();
         $(cells_status_false).addClass('status_false');
         $(cells_status_false).html(resources.disabled);
 
-        var cells_status_true = tableStatus.cells(".table_rules_status:contains('true')").nodes();
+        var cells_status_true = tableStatus.cells(".table_status:contains('true')").nodes();
         $(cells_status_true).addClass('status_true');
         $(cells_status_true).html(resources.enabled);
     }
@@ -91,15 +91,19 @@
             "autoWidth": false,
             "pageLength": 20,
             "displayStart": 0,
-            "pagingType": "simple",
+            "pagingType": "simple_numbers",
             "paging": true,
             "lengthChange": false,
             "processing": false,
             "serverSide": false,
-            "dom": "<'dataTables_header'ip>lrt?",
+            "dom": "<'dataTables_header'i>lrtp?",
             "ajax": onDataTableAjaxCalled,
             "language": {
-                "info": "Rules (_TOTAL_)"
+                "info": resources.rulesList + " (_TOTAL_)",
+                "paginate": {
+                    "previous": resources.previousPaging,
+                    "next": resources.nextPaging
+                }
             },
             "columns": [
                 {
@@ -145,7 +149,7 @@
                 {
                     "data": "threshold",
                     "mRender": function (data) {
-                        return htmlEncode(data.toString());
+                        return IoTApp.Helpers.Numbers.localizeNumber(data);
                     },
                     "name": "threshold"
                 },
@@ -158,7 +162,7 @@
                 }
             ],
             "columnDefs": [
-                { className: "table_rules_status", "targets": [0] },
+                { className: "table_status", "targets": [0] },
                 { "searchable": true, "targets": [1] }
             ],
             "order": [[2, "asc"]]
@@ -230,7 +234,7 @@
     /* Set the heights of scrollable elements for correct overflow behavior */
     function fixHeights() {
         // set height of device details pane
-        var fixedHeightVal = $(window).height() - $(".header_page").height();
+        var fixedHeightVal = $(window).height() - $(".navbar").height();
         $(".height_fixed").height(fixedHeightVal);
     }
 
@@ -252,7 +256,7 @@
         // Even though we're working with rules, we still use the no_device_selected class
         // So we don't have to duplicate a bunch of styling for now
         var noRuleSelected = resources.noRuleSelected;
-        $('#details_grid_container').html('<div class="no_device_selected">' + noRuleSelected + '</div>');
+        $('#details_grid_container').html('<div class="details_grid__no_selection">' + noRuleSelected + '</div>');
     }
 
     var setGridWidth = function () {

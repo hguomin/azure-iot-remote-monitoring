@@ -1,44 +1,77 @@
 ﻿IoTApp.createModule("IoTApp.Helpers.Dialog", function() {
     "use strict";
 
-    var displayError = function(message) {
-        $("#dialog_error_text").html(message);
+    var defaultOption = {
+        resizable: false,
+        modal: true,
+        closeText: "hide",
+        width: 400,
+        open: function (event, ui) {
+            $(".ui-dialog-titlebar-close").hide();
+        }
+    };
 
-        var errorDialogButtons = getErrorDialogButtons();
+    var displayError = function (message, callback) {
+        var container = $("#dialog-error");
+        $("div span", container).html(message);
 
-        $("#dialog-error").dialog({
-            title: $("#dialog_error_text").data("resource-error"),
-            resizable: false,
-            modal: true,
-            closeText: "hide",
-            open: function(event, ui) {
-                $(".ui-dialog-titlebar-close").hide();
-            },
-            buttons: errorDialogButtons
+        showDialog(container, {
+            buttons: [
+                {
+                    text: container.data("resource-ok"),
+                    click: function () {
+                        $(this).dialog("close");
+                        if ($.isFunction(callback)) {
+                            callback();
+                        }
+                    },
+                    "class": "button_base"
+                }
+            ]
         });
     }
 
-    var getErrorDialogButtons = function() {
-        var dialogButtons = {};
-        var okResource = getOkResource();
-        dialogButtons[okResource] = errorDialogOkButtonClicked;
-        return dialogButtons;
+    var confirm = function (message, callback) {
+        var container = $("#dialog-confirm");
+        $("div span", container).html(message);
+
+        showDialog(container, {
+            open: function (event, ui) {
+                $(".ui-dialog-titlebar-close").hide();
+            },
+            buttons: [
+                {
+                    text: container.data("resource-cancel"),
+                    click: function () {
+                        $(this).dialog("close");
+                        if ($.isFunction(callback)) {
+                            callback(false);
+                        }
+                    },
+                    "class": "button_base button_secondary"
+                },
+                {
+                    text: container.data("resource-ok"),
+                    click: function () {
+                        $(this).dialog("close");
+                        if ($.isFunction(callback)) {
+                            callback(true);
+                        }
+                    },
+                    "class": "button_base"
+                }
+            ]
+        });
     }
 
-    var getOkResource = function() {
-        var okResource = $("#dialog_error_text").data("resource-ok");
-        if (!okResource) {
-            return "OK";
-        }
-
-        return okResource;
-    }
-
-    var errorDialogOkButtonClicked = function() {
-        $(this).dialog("close");
+    var showDialog = function (container, option) {
+        option.title = container.data("resource-title");
+        option = $.extend(defaultOption, option);
+        container.dialog(option);
     }
 
     return {
-        displayError: displayError
+        displayError: displayError,
+        confirm: confirm
     }
 });

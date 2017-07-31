@@ -8,12 +8,19 @@ namespace Microsoft.Azure.Devices.Applications.RemoteMonitoring.DeviceAdmin.Web.
     /// </summary>
     public class EditDevicePropertiesModel
     {
-        #region Properties
-
         /// <summary>
         /// Gets or sets the edited Device's ID.
         /// </summary>
         public string DeviceId
+        {
+            get;
+            set;
+        }
+
+        /// <summary>
+        /// indicates  if a device is simulated
+        /// </summary>
+        public bool IsSimulatedDevice
         {
             get;
             set;
@@ -28,7 +35,5 @@ namespace Microsoft.Azure.Devices.Applications.RemoteMonitoring.DeviceAdmin.Web.
             get;
             set;
         }
-
-        #endregion
     }
 }

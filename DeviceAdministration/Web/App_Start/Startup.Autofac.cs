@@ -1,14 +1,17 @@
-﻿using System.Reflection;
-using System.Web.Mvc;
-using Autofac;
+﻿using Autofac;
 using Autofac.Integration.Mvc;
 using Autofac.Integration.WebApi;
+using DeviceManagement.Infrustructure.Connectivity.Models.Security;
+using DeviceManagement.Infrustructure.Connectivity.Services;
 using Microsoft.Azure.Devices.Applications.RemoteMonitoring.Common.Configurations;
-using Microsoft.Azure.Devices.Applications.RemoteMonitoring.Common.Helpers;
 using Microsoft.Azure.Devices.Applications.RemoteMonitoring.Common.Repository;
 using Microsoft.Azure.Devices.Applications.RemoteMonitoring.DeviceAdmin.Infrastructure.BusinessLogic;
 using Microsoft.Azure.Devices.Applications.RemoteMonitoring.DeviceAdmin.Infrastructure.Repository;
+using Microsoft.Azure.Devices.Applications.RemoteMonitoring.DeviceAdmin.Web.Helpers;
 using Owin;
+using System.Reflection;
+using System.Web.Mvc;
+using Microsoft.Azure.Devices.Applications.RemoteMonitoring.Common.Helpers;
 
 namespace Microsoft.Azure.Devices.Applications.RemoteMonitoring.DeviceAdmin.Web
 {
@@ -52,7 +55,7 @@ namespace Microsoft.Azure.Devices.Applications.RemoteMonitoring.DeviceAdmin.Web
         {
             //Logic
             builder.RegisterType<KeyLogic>().As<IKeyLogic>();
-            builder.RegisterType<DeviceLogic>().As<IDeviceLogic>();
+            builder.RegisterType<DeviceLogicWithIoTHubDM>().As<IDeviceLogic>();
             builder.RegisterType<DeviceRulesLogic>().As<IDeviceRulesLogic>();
             builder.RegisterType<DeviceTypeLogic>().As<IDeviceTypeLogic>();
             builder.RegisterType<SecurityKeyGenerator>().As<ISecurityKeyGenerator>();
@@ -63,11 +66,15 @@ namespace Microsoft.Azure.Devices.Applications.RemoteMonitoring.DeviceAdmin.Web
             builder.RegisterType<DeviceTelemetryLogic>().As<IDeviceTelemetryLogic>();
 
             builder.RegisterType<AlertsLogic>().As<IAlertsLogic>();
+            builder.RegisterType<NameCacheLogic>().As<INameCacheLogic>();
+            builder.RegisterType<FilterLogic>().As<IFilterLogic>();
+            builder.RegisterType<UserSettingsLogic>().As<IUserSettingsLogic>();
 
             //Repositories
             builder.RegisterType<IotHubRepository>().As<IIotHubRepository>();
-            builder.RegisterType<DeviceRegistryRepository>().As<IDeviceRegistryListRepository>();
-            builder.RegisterType<DeviceRegistryRepository>().As<IDeviceRegistryCrudRepository>();
+            builder.RegisterType<IoTHubDeviceManager>().As<IIoTHubDeviceManager>();
+            builder.RegisterType<DeviceRegistryRepositoryWithIoTHubDM>().As<IDeviceRegistryListRepository>();
+            builder.RegisterType<DeviceRegistryRepositoryWithIoTHubDM>().As<IDeviceRegistryCrudRepository>();
             builder.RegisterType<DeviceRulesRepository>().As<IDeviceRulesRepository>();
             builder.RegisterType<SampleDeviceTypeRepository>().As<IDeviceTypeRepository>();
             builder.RegisterType<VirtualDeviceTableStorage>().As<IVirtualDeviceStorage>();
@@ -76,8 +83,19 @@ namespace Microsoft.Azure.Devices.Applications.RemoteMonitoring.DeviceAdmin.Web
             builder.RegisterType<DeviceTelemetryRepository>().As<IDeviceTelemetryRepository>();
             builder.RegisterType<AlertsRepository>().As<IAlertsRepository>();
             builder.RegisterType<UserSettingsRepository>().As<IUserSettingsRepository>();
-
-            builder.RegisterType<DocDbRestHelper>().As<IDocDbRestHelper>();
+            builder.RegisterType<ApiRegistrationRepository>().As<IApiRegistrationRepository>();
+            builder.RegisterType<IccidRepository>().As<IIccidRepository>();
+            builder.RegisterType<JasperCredentialsProvider>().As<ICredentialProvider>();
+            builder.RegisterType<ExternalCellularService>().As<IExternalCellularService>();
+            builder.RegisterType<CellularExtensions>().As<ICellularExtensions>();
+            builder.RegisterType<AzureTableStorageClientFactory>().As<IAzureTableStorageClientFactory>();
+            builder.RegisterType<BlobStorageClientFactory>().As<IBlobStorageClientFactory>();
+            builder.RegisterGeneric(typeof(DocumentDBClient<>)).As(typeof(IDocumentDBClient<>));
+            builder.RegisterType<NameCacheRepository>().As<INameCacheRepository>();
+            builder.RegisterType<JobRepository>().As<IJobRepository>();
+            builder.RegisterType<DeviceListFilterRepository>().As<IDeviceListFilterRepository>();
+            builder.RegisterType<UserSettingsRepository>().As<IUserSettingsRepository>();
+            builder.RegisterType<DeviceIconRepository>().As<IDeviceIconRepository>();
         }
     }
 }

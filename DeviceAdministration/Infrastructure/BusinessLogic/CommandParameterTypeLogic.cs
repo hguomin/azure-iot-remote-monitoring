@@ -1,7 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
-using Microsoft.Azure.Devices.Applications.RemoteMonitoring.Common.Extensions;
 
 namespace Microsoft.Azure.Devices.Applications.RemoteMonitoring.DeviceAdmin.Infrastructure.BusinessLogic
 {
@@ -25,6 +26,10 @@ namespace Microsoft.Azure.Devices.Applications.RemoteMonitoring.DeviceAdmin.Infr
             return IsTypeValid(typeName, value);
         }
 
+        [SuppressMessage(
+            "Microsoft.Globalization", 
+            "CA1308:NormalizeStringsToUppercase",
+            Justification = "CommandTypes.Types' keys are all lower case English values.  CanTypeBeNull is likewise based on lower case English values.")]
         public object Get(string typeName, object value)
         {
             var lowerCaseTypeName = typeName.ToLowerInvariant();
@@ -68,6 +73,10 @@ namespace Microsoft.Azure.Devices.Applications.RemoteMonitoring.DeviceAdmin.Infr
             return datetime.ToUniversalTime();
         }
 
+        [SuppressMessage(
+            "Microsoft.Globalization", 
+            "CA1308:NormalizeStringsToUppercase",
+            Justification = "typeName-related logic works from lower-case English values.")]
         private bool IsTypeValid(string typeName, object value)
         {
             try
@@ -80,7 +89,6 @@ namespace Microsoft.Azure.Devices.Applications.RemoteMonitoring.DeviceAdmin.Infr
                 var parsedValue = Get(typeName, value);
 
                 return parsedValue != null;
-
             }
             catch
             {
@@ -113,14 +121,40 @@ namespace Microsoft.Azure.Devices.Applications.RemoteMonitoring.DeviceAdmin.Infr
                 case "binary":
                     return ParseBase64(value);
 
+
                 default:
-                    return Convert.ChangeType(value, type);
+                    return Convert.ChangeType(
+                        value, 
+                        type, 
+                        CultureInfo.CurrentCulture);
             }
         }
 
-        private static object ParseBase64(string value)
+        private static object ParseBase64(string base64String)
         {
-            return value.IsBase64() ? value : null;
+            var isBase64 = false;
+            if (string.IsNullOrEmpty(base64String) ||
+                base64String.Length%4 != 0 ||
+                base64String.Contains(" ") ||
+                base64String.Contains("\t") ||
+                base64String.Contains("\r") ||
+                base64String.Contains("\n"))
+            {
+                isBase64 = false;
+            }
+
+            // now do the real test
+            try
+            {
+                Convert.FromBase64String(base64String);
+                isBase64 = true;
+            }
+            catch (FormatException)
+            {
+                isBase64 = false;
+            }
+
+            return isBase64 ? base64String : null;
         }
 
         private static object ParseDecimal(string value)
@@ -181,28 +215,45 @@ namespace Microsoft.Azure.Devices.Applications.RemoteMonitoring.DeviceAdmin.Infr
                 return null;
             }
 
-            return datetime.ToString("yyyy-MM-dd");
+            return datetime.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
         }
     }
 
+    /// <summary>
+    /// A class for translating command value types to managed framework ones.
+    /// </summary>
+    /// <remarks>
+    /// It uses type names, normalized as lower-case.
+    /// </remarks>
     public class CommandTypes
     {
-        public static Dictionary<string, Type> Types = new Dictionary<string, Type>
+        private static readonly ReadOnlyDictionary<string, Type> _typesBacking =
+            new ReadOnlyDictionary<string, Type>(
+                new Dictionary<string, Type>
+                {
+                    {"int16", typeof (Int16)},
+                    {"int", typeof (Int32)},
+                    {"int32", typeof (Int32)},
+                    {"int64", typeof (Int64)},
+                    {"sbyte", typeof (sbyte)},
+                    {"byte", typeof (byte)},
+                    {"double", typeof (double)},
+                    {"boolean", typeof (bool)},
+                    {"decimal", typeof (decimal)},
+                    {"single", typeof (Single)},
+                    {"guid", typeof (Guid)},
+                    {"binary", typeof (string)},
+                    {"string", typeof (string)},
+                    {"date", typeof (DateTime)},
+                    {"datetimeoffset", typeof (DateTime)}
+                });
+
+        public static ReadOnlyDictionary<string, Type> Types
         {
-            {"int16", typeof (Int16)},
-            {"int32", typeof (Int32)},
-            {"int64", typeof (Int64)},
-            {"sbyte", typeof (sbyte)},
-            {"byte", typeof (byte)},
-            {"double", typeof (double)},
-            {"boolean", typeof (bool)},
-            {"decimal", typeof (decimal)},
-            {"single", typeof (Single)},
-            {"guid", typeof (Guid)},
-            {"binary", typeof (string)},
-            {"string", typeof (string)},
-            {"date", typeof (DateTime)},
-            {"datetimeoffset", typeof (DateTime)}
-        };
+            get
+            {
+                return _typesBacking;
+            }
+        }
     }
 }

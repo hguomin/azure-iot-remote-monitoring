@@ -3,7 +3,7 @@
 
     var self = this;
     var init = function() {
-        self.backButton = $(".button_back");
+        self.backButton = $(".header_main__button_back");
         self.removeDeviceCheckbox = $("#removeDeviceCheckbox");
         self.removeDevice = $("#removeDevice");
         self.cancelButton = $("#cancelButton");
@@ -36,6 +36,9 @@
     }
 
     var onSuccess = function () {
+        setTimeout(function () {
+            $('#loadingElement').show();
+        }, 0);
         // get rid of deviceId cookie value--we just deleted the device
         IoTApp.Helpers.DeviceIdState.saveDeviceIdToCookie('');
 

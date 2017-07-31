@@ -1,5 +1,4 @@
 ﻿using System.Collections.Generic;
-using Microsoft.Azure.Devices.Applications.RemoteMonitoring.DeviceAdmin.Infrastructure.Models;
 
 namespace Microsoft.Azure.Devices.Applications.RemoteMonitoring.DeviceAdmin.Web.Models
 {
@@ -10,8 +9,6 @@ namespace Microsoft.Azure.Devices.Applications.RemoteMonitoring.DeviceAdmin.Web.
     /// </summary>
     public class DashboardModel
     {
-        #region Constructors
-
         /// <summary>
         /// Initializes a new instance of the DashboardModel class.
         /// </summary>
@@ -19,10 +16,6 @@ namespace Microsoft.Azure.Devices.Applications.RemoteMonitoring.DeviceAdmin.Web.
         {
             this.DeviceIdsForDropdown = new List<StringPair>();
         }
-
-        #endregion
-
-        #region Properties
 
         /// <summary>
         /// Gets a list of ID pairs for populating the Device selection drop 
@@ -35,8 +28,17 @@ namespace Microsoft.Azure.Devices.Applications.RemoteMonitoring.DeviceAdmin.Web.
         }
 
         public string MapApiQueryKey { get; set; }
-        public DeviceListLocationsModel DeviceLocations { get; set; }
 
-        #endregion
+        public string Username { get; set; }
+
+        public string AppInsightsKey { get; set; }
+
+        public IEnumerable<LanguageModel> AvailableLanguages { get; set; }
+
+        public string CurrentLanguageNameIso { get; set; }
+
+        public string CurrentLanguageName { get; set; }
+
+        public string CurrentLanguageTextDirection { get; set; }
     }
 }

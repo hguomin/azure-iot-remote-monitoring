@@ -17,7 +17,7 @@
             onActionPropertiesDone(response);
         }).fail(function (response) {
             $('#loadingElement').hide();
-            renderRetryError(resources.unableToRetrieveActionFromService, $('#details_grid_container'), function () { getActionPropertiesView(ruleOutput, actionId); });
+            IoTApp.Helpers.RenderRetryError(resources.unableToRetrieveActionFromService, $('#details_grid_container'), function () { getActionPropertiesView(ruleOutput, actionId); });
         });
     }
 
@@ -92,29 +92,10 @@
     
     var setDetailsPaneLoaderHeight = function () {
         /* Set the height of the Device Details progress animation background to accommodate scrolling */
-        var progressAnimationHeight = $("#details_grid_container").height() + $(".grid_subhead.button_details_grid").outerHeight();
+        var progressAnimationHeight = $("#details_grid_container").height() + $(".details_grid__grid_subhead.button_details_grid").outerHeight();
 
         $(".loader_container_details").height(progressAnimationHeight);
     };
-
-    var renderRetryError = function (errorMessage, container, retryCallback) {
-        var $wrapper = $('<div />');
-        var $paragraph = $('<p />');
-
-        $wrapper.addClass('device_detail_error');
-        $wrapper.append($paragraph);
-        var node = document.createTextNode(errorMessage);
-        $paragraph.append(node);
-
-        var button = $('<button>' + resources.retry + '</button>');
-
-        button.on("click", function () {
-            retryCallback();
-        });
-
-        $wrapper.append(button);
-        container.html($wrapper);
-    }
 
     var readonlyActionState = function (container) {
         container.empty();

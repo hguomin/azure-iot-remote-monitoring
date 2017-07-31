@@ -6,13 +6,13 @@
     var init = function (commands, deviceIsEnabled) {
         setDatatable();
         self._sendCommandButton = $('#sendCommand_button');
-        self._backButton = $('.button_back');
+        self._backButton = $('.header_main__button_back');
         self.sendCommandForm = $("#command_form");
         self._backButton.show();
         self.commands = commands;
         self.deviceIsEnabled = deviceIsEnabled;
         self.commandsResponse = [];
-        self.resendCommandbuttons = $('.resend-command');
+        self.resendCommandbuttons = $('.resend_command');
         setNavigationEvents();
         commandHistoryErrors();
         $.validator.setDefaults({
@@ -25,7 +25,7 @@
 
     var commandHistoryErrors = function() {
         $("#commandHistory .error").parent().on("click", function () {
-            var errorMessageElement = $(this).find(".error_message");
+            var errorMessageElement = $(this).find(".command_history__error_message");
             var errorMessage = errorMessageElement.data("error-message");
             errorMessageElement.html(errorMessage);
             $(this).off("click");
@@ -45,11 +45,13 @@
 
     var onResendCommandClicked = function() {
         var commandName = $(this).data('command-name');
+        var deliveryType = $(this).data('command-deliverytype');
         var commandJson = $(this).data('command-json');
 
         var command = {
             deviceId: resources.deviceId,
             name: commandName,
+            deliveryType: deliveryType,
             commandJson: JSON.stringify(commandJson)
         };
 
@@ -69,7 +71,7 @@
     }
 
     var resendCommand = function (command) {
-        return $.post('/DeviceCommand/ResendCommand', command);
+        return $.post(resources.resendCommand, command);
     }
 
     var setDatatable = function() {
@@ -84,13 +86,17 @@
             "oLanguage": {
                 "sInfo": "Devices List (_TOTAL_)"
             },
-            "order": [3, "desc"],
+            "order": [resources.sortColumnIndex, "desc"],
             "pageLength": 1000,
             "columnDefs": [
-                { "width": "200", "targets": 1 }
+                { "width": "200", "targets": 1 },
+                { className: "table_truncate_with_max_width", targets: [2, 3] }
             ]
         });
 
+        $('#content').show();
+
+        IoTApp.Helpers.String.setupTooltipForEllipsis($('#commandHistory'));
     }
 
 
@@ -244,8 +250,15 @@
 
     var addDateTime = function ()
     {
+        if (cultureInfo && $.datepicker.regional[cultureInfo]) {
+            $('.datetime').datepicker($.datepicker.regional[cultureInfo]);
+        } else if (cultureInfoShort && $.datepicker.regional[cultureInfoShort]) {
+            $('.datetime').datepicker($.datepicker.regional[cultureInfoShort]);
+        }
+
+        $('.datetime').datepicker('option', 'dateFormat', 'yy-mm-dd');
+
         $('.datetime').datepicker({
-            dateFormat: 'yy-mm-dd',
             onClose: function() {
                 var boundTo = $(this).data('bound-to');
                 if (boundTo) {
@@ -293,7 +306,7 @@
             command: command
         }
         data["__RequestVerificationToken"] = $('input[name="__RequestVerificationToken"]').val();
-        return $.post('/DeviceCommand/Command', data, function (response) {
+        return $.post(resources.commandUI, data, function (response) {
             return response;
         });
     }

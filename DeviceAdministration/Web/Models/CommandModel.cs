@@ -1,9 +1,12 @@
 ﻿using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
+using System.Diagnostics.CodeAnalysis;
+using System.Globalization;
 using System.Linq;
 using GlobalResources;
 using Microsoft.Azure.Devices.Applications.RemoteMonitoring.Common.Models;
 using Microsoft.Azure.Devices.Applications.RemoteMonitoring.DeviceAdmin.Infrastructure.BusinessLogic;
+using Microsoft.Azure.Devices.Applications.RemoteMonitoring.Common.Models.Commands;
 
 namespace Microsoft.Azure.Devices.Applications.RemoteMonitoring.DeviceAdmin.Web.Models
 {
@@ -26,14 +29,20 @@ namespace Microsoft.Azure.Devices.Applications.RemoteMonitoring.DeviceAdmin.Web.
         }
         public string Name { get; set; }
         public string DeviceId { get; set; }
+        public DeliveryType DeliveryType { get; set; }
+        public string Description { get; set; }
     }
 
-    public class ParameterModel : Parameter, IValidatableObject
+    public class ParameterModel : IValidatableObject
     {
         public ParameterModel()
         {
             ErrorMessages = new List<string>();
         }
+
+        public string Name { get; set; }
+
+        public string Type { get; set; }
 
         public string Value { get; set; }
 
@@ -53,14 +62,26 @@ namespace Microsoft.Azure.Devices.Applications.RemoteMonitoring.DeviceAdmin.Web.
             return validationResult;
         }
 
+        [SuppressMessage(
+            "Microsoft.Globalization", 
+            "CA1308:NormalizeStringsToUppercase",
+            Justification = "Type error messages are based on lower-case English names.")]
         private string GetCommandErrorMessage()
         {
             var errorMessage =
-                Strings.ResourceManager.GetString(string.Format("{0}CommandErrorMessage", Type.ToLowerInvariant()));
+                Strings.ResourceManager.GetString(
+                    string.Format(
+                    CultureInfo.InvariantCulture,
+                    "{0}CommandErrorMessage", 
+                    Type.ToLowerInvariant()));
 
             if (string.IsNullOrEmpty(errorMessage))
             {
-                errorMessage = string.Format(Strings.UnknownCommandParameterType, Type);
+                errorMessage = 
+                    string.Format(
+                        CultureInfo.CurrentCulture,
+                        Strings.UnknownCommandParameterType, 
+                        Type);
             }
             return errorMessage;
         }
@@ -70,7 +91,7 @@ namespace Microsoft.Azure.Devices.Applications.RemoteMonitoring.DeviceAdmin.Web.
     {
         public static IEnumerable<ParameterModel> ToParametersModel(this List<Parameter> parameters)
         {
-            if (parameters == null || parameters[0] == null)
+            if (parameters == null || parameters.Count == 0)
             {
                 return new List<ParameterModel>();
             }

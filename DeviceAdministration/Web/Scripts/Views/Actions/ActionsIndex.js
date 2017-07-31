@@ -73,15 +73,15 @@
             "autoWidth": false,
             "pageLength": 20,
             "displayStart": 0,
-            "pagingType": "simple",
+            "pagingType": "simple_numbers",
             "paging": false,
             "lengthChange": false,
             "processing": false,
             "serverSide": false,
-            "dom": "<'dataTables_header'ip>lrt?",
+            "dom": "<'dataTables_header'i>lrtp?",
             "ajax": onDataTableAjaxCalled,
             "language": {
-                "info": "Actions (_TOTAL_)"
+                "info": resources.actionsList + " (_TOTAL_)"
             },
             "columns": [
                 {
@@ -160,7 +160,7 @@
     /* Set the heights of scrollable elements for correct overflow behavior */
     function fixHeights() {
         // set height of device details pane
-        var fixedHeightVal = $(window).height() - $(".header_page").height();
+        var fixedHeightVal = $(window).height() - $(".navbar").height();
         $(".height_fixed").height(fixedHeightVal);
     }
 
@@ -182,7 +182,7 @@
         // Even though we're working with actions, we still use the no_device_selected class
         // So we don't have to duplicate a bunch of styling for now
         var noActionSelected = resources.noActionSelected;
-        $('#details_grid_container').html('<div class="no_device_selected">' + noActionSelected + '</div>');
+        $('#details_grid_container').html('<div class="details_grid__no_selection">' + noActionSelected + '</div>');
     }
 
     var setGridWidth = function () {

@@ -1,18 +1,19 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Configuration;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Reflection;
-using Microsoft.WindowsAzure.ServiceRuntime;
+using Microsoft.Azure.Devices.Applications.RemoteMonitoring.Common.Extensions;
 
 namespace Microsoft.Azure.Devices.Applications.RemoteMonitoring.Common.Configurations
 {
-    public class ConfigurationProvider : IConfigurationProvider
+    public class ConfigurationProvider : IConfigurationProvider, IDisposable
     {
         readonly Dictionary<string, string> configuration = new Dictionary<string, string>();
         EnvironmentDescription environment = null;
         const string ConfigToken = "config:";
+        bool _disposed = false;
 
         public string GetConfigurationSettingValue(string configurationSettingName)
         {
@@ -21,56 +22,36 @@ namespace Microsoft.Azure.Devices.Applications.RemoteMonitoring.Common.Configura
 
         public string GetConfigurationSettingValueOrDefault(string configurationSettingName, string defaultValue)
         {
-            try
+            if (!this.configuration.ContainsKey(configurationSettingName))
             {
-                if (!this.configuration.ContainsKey(configurationSettingName))
+                string configValue = CloudConfigurationManager.GetSetting(configurationSettingName);
+                bool isEmulated = Environment.CommandLine.Contains("iisexpress.exe") ||
+                    Environment.CommandLine.Contains("w3wp.exe") ||
+                    Process.GetCurrentProcess().GetAncestorNames().Contains("devenv"); // if debugging in VS, devenv will be the parent
+
+                if (isEmulated && (configValue != null && configValue.StartsWith(ConfigToken, StringComparison.OrdinalIgnoreCase)))
                 {
-                    string configValue = string.Empty;
-                    bool isEmulated = true;
-                    bool isAvailable = false;
-                    try
+                    if (environment == null)
                     {
-                        isAvailable = RoleEnvironment.IsAvailable;
+                        LoadEnvironmentConfig();
                     }
-                    catch (TypeInitializationException) { }
-                    if (isAvailable)
-                    {
-                        configValue = RoleEnvironment.GetConfigurationSettingValue(configurationSettingName);
-                        isEmulated = RoleEnvironment.IsEmulated;
-                    }
-                    else
-                    {
-                        configValue = ConfigurationManager.AppSettings[configurationSettingName];
-                        isEmulated = Environment.CommandLine.Contains("iisexpress.exe") ||
-                            Environment.CommandLine.Contains("DeviceAdministration.WebJob.vshost.exe");
-                    }
-                    if (isEmulated && configValue.StartsWith(ConfigToken, StringComparison.OrdinalIgnoreCase))
-                    {
-                        if (environment == null)
-                        {
-                            LoadEnvironmentConfig();
-                        }
-                        configValue = environment.GetSetting(configValue.Substring(configValue.IndexOf(ConfigToken) + ConfigToken.Length));
-                    }
-                    try
-                    {
-                        this.configuration.Add(configurationSettingName, configValue);
-                    }
-                    catch (ArgumentException)
-                    {
-                        // at this point, this key has already been added on a different
-                        // thread, so we're fine to continue
-                    }
+
+                    configValue = environment.GetSetting(
+                        configValue.Substring(configValue.IndexOf(ConfigToken, StringComparison.Ordinal) + ConfigToken.Length));
+                }
+
+                try
+                {
+                    this.configuration.Add(configurationSettingName, configValue);
+                }
+                catch (ArgumentException)
+                {
+                    // at this point, this key has already been added on a different
+                    // thread, so we're fine to continue
                 }
             }
-            catch (RoleEnvironmentException)
-            {
-                if (string.IsNullOrEmpty(defaultValue))
-                    throw;
 
-                this.configuration.Add(configurationSettingName, defaultValue);
-            }
-            return this.configuration[configurationSettingName];
+            return this.configuration[configurationSettingName] ?? defaultValue;
         }
 
         void LoadEnvironmentConfig()
@@ -96,7 +77,7 @@ namespace Microsoft.Azure.Devices.Applications.RemoteMonitoring.Common.Configura
             {
                 location = executingPath.IndexOf("WebJob\\bin", StringComparison.OrdinalIgnoreCase);
             }
-            if (location >=0)
+            if (location >= 0)
             {
                 string fileName = executingPath.Substring(0, location) + "..\\local.config.user";
                 if (File.Exists(fileName))
@@ -108,5 +89,36 @@ namespace Microsoft.Azure.Devices.Applications.RemoteMonitoring.Common.Configura
 
             throw new ArgumentException("Unable to locate local.config.user file.  Make sure you have run 'build.cmd local'.");
         }
+
+        #region IDispose 
+        public void Dispose()
+        {
+            Dispose(true);
+            GC.SuppressFinalize(this);
+        }
+
+        protected virtual void Dispose(bool disposing)
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            if (disposing)
+            {
+                if (environment != null)
+                {
+                    environment.Dispose();
+                }
+            }
+
+            _disposed = true;
+        }
+
+        ~ConfigurationProvider()
+        {
+            Dispose(false);
+        }
+        #endregion
     }
 }

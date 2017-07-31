@@ -4,12 +4,21 @@
 
 @if ((Model.HubEnabledState != null) || Model.CanRemoveDevice)
 {
-    <header class="header_grid">
-        <h3 class="grid_subheadhead_detail">@Strings.Actions</h3>
-    </header>
-
-    <section class="details_grid_actions">
-
+    <section class="details_grid_header">
+        <div class="details_grid_header_image_container">
+            @{ 
+                var tagImage = Model.DevicePropertyValueModels.Where(m => m.Name == "tags." + Constants.DeviceIconTagName).FirstOrDefault();
+                var defaultImage = Model.IsSimulatedDevice ? "/Content/img/IoT.svg" : "/Content/img/device_default.svg";
+                var image = tagImage != null && !string.IsNullOrWhiteSpace(tagImage.Value) ?
+                    ViewBag.IconBaseUrl + tagImage.Value : defaultImage;
+            }
+            <img src="@image" class="details_grid_header_image" />
+            @if (Model.IsDeviceEditEnabled)
+            {
+            <a href="@Url.Action("EditIcon", "Device", new { deviceId = Model.DeviceID })"><img src="~/Content/img/edit_image.svg" class="details_grid_header_image_edit" title="@Strings.EditDeviceIcon" /></a>
+            }
+        </div>
+        <div class="details_grid_header_actions">
         @if (Model.HubEnabledState.HasValue)
         {
             if (Model.CanDisableDevice)
@@ -52,6 +61,19 @@
                     id = "sendCommandLink"
                 })
             </p>
+
+            <p class="grid_detail_value">
+                @Html.ActionLink(
+               Strings.DeviceMethods, "Index", "DeviceMethod",
+               new
+               {
+                   deviceId = Model.DeviceID
+               },
+               new
+               {
+                   id = "invokeMethodLink"
+               })
+            </p>
         }
 
         @if (Model.CanRemoveDevice)
@@ -65,20 +87,33 @@
                     null)
             </p>
         }
+        </div>
     </section>
 }
 
+@if (Model.IsCellular)
+{
+    // save this to cache to save having to load device again if user decides to retrieve SIM
+    <script>
+        $(function() {
+            IoTApp.Helpers.IccidState.saveIccidToCookie("@Model.Iccid");
+        });
+    </script>
+    @Html.Partial("_DeviceDetailsCellular", Model);
+}
+else
+{
+    // clear any existing sim information as this device does not have any SIM information
+    <script>
+        $(function() {
+            IoTApp.Helpers.IccidState.saveIccidToCookie(null);
+        });
+    </script>
+}
 
 @(Model.HubEnabledState != null ? 
     Html.Partial("_DeviceDetailsDeviceProperties", Model) : 
     Html.Partial("_DeviceDetailsNotRegistered", Model))
-
-@{
-    if (Model.HasKeyViewingPerm)
-    {
-        Html.RenderPartial("_DeviceDetailsKeyLink", Model.GetKeys());
-    }
-}
 
 @if (Model.HubEnabledState == true)
 {

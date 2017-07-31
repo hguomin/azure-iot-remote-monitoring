@@ -8,6 +8,8 @@
 *.suo
 *.user
 *.sln.docstates
+*.opendb
+*.patch
 
 # Build results
 [Dd]ebug/
@@ -19,6 +21,7 @@ bld/
 [Bb]in/
 [Oo]bj/
 Build_Output/
+.vs/
 
 # Roslyn cache directories
 *.ide/
@@ -201,3 +204,8 @@ VendingMachineSample/packages/*
 
 # Merge file remains
 *.orig
+/RemoteMonitoring.VC.db
+/RemoteMonitoring.VC.VC.opendb
+/Simulator/Simulator.WebJob/DMSimulator.exe
+/pingme.txt
+*.powerbirc

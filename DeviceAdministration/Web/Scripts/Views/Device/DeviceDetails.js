@@ -1,30 +1,87 @@
 ﻿IoTApp.createModule('IoTApp.DeviceDetails', function () {
     "use strict";
 
+    $.ajaxSetup({ cache: false });
     var self = this;
+
     var getDeviceDetailsView = function (deviceId) {
         $('#loadingElement').show();
+        $('.details_grid_closed__grid_subhead').text(resources.deviceDetailsPanelLabel);
+        $('.details_grid__grid_subhead').text(resources.deviceDetailsPanelLabel);
         self.deviceId = deviceId;
 
-        $.get('/Device/GetDeviceDetails', { deviceId: deviceId }, function (response) {
-            if (!$(".details_grid").is(':visible')) {
-                IoTApp.DeviceIndex.toggleDetails();
-            }
+        return $.get('/Device/GetDeviceDetails', { deviceId: deviceId }, function (response) {
             onDeviceDetailsDone(response);
         }).fail(function (response) {
             $('#loadingElement').hide();
-            renderRetryError(resources.unableToRetrieveDeviceFromService, $('#details_grid_container'), function () { getDeviceDetailsView(deviceId); });
+            IoTApp.Helpers.RenderRetryError(resources.unableToRetrieveDeviceFromService, $('#details_grid_container'), function () { getDeviceDetailsView(deviceId); });
         });
-
     }
 
-    var onDeviceDetailsDone = function (html) {
+    var getScheduleJobView = function (filterId, filterName) {
+        $('#loadingElement').show();
+        $('.details_grid_closed__grid_subhead').text(resources.scheduleJobPanelLabel);
+        $('.details_grid__grid_subhead').text(resources.scheduleJobPanelLabel);
+
+        return $.get('/Job/ScheduleJob', { filterId: filterId, filterName: filterName }, function (response) {
+            onScheduleJobReady(response);
+        }).fail(function (response) {
+            $('#loadingElement').hide();
+            IoTApp.Helpers.RenderRetryError(resources.failedToScheduleJob, $('#details_grid_container'), function () { getScheduleJobView(); });
+        });
+    }
+
+    var getCellularDetailsView = function (iccid) {
+        return $.get("/Device/GetDeviceCellularDetails", { iccid: iccid });
+    }
+
+    var onCellularDetailsDone = function (html) {
         $('#loadingElement').hide();
         $('#details_grid_container').empty();
         $('#details_grid_container').html(html);
+
+        $("#deviceExplorer_CellInformationBack").on("click", function () {
+            $('#details_grid_container').empty();
+            onDeviceDetailsDone(self.cachedDeviceHtml);
+        });
+        return $.Deferred().resolve().promise();
+    }
+
+    var displayCellularDetailsView = function () {
+        $('#loadingElement').show();
+
+        var iccid = IoTApp.Helpers.IccidState.getIccidFromCookie();
+        if (iccid === null) {
+            renderRetryError(resources.unableToRetrieveDeviceFromService, $('#details_grid_container'), function () { getDeviceDetailsView(deviceId); });
+            return;
+        }
+
+        getCellularDetailsView(iccid).then(function (response) {
+            onCellularDetailsDone(response);
+        }, function () {
+            $('#loadingElement').hide();
+            renderRetryError(resources.unableToRetrieveDeviceFromService, $('#details_grid_container'), function () { getDeviceDetailsView(deviceId); });
+        });
+    }
+
+    var onDeviceDetailsDone = function (html) {
+
+        if (self.cachedDeviceHtml === null) {
+            self.cachedDeviceHtml = html;
+        }
+
+        $('#loadingElement').hide();
+        $('#details_grid_container').empty();
+        $('#details_grid_container').html(html);
+
         IoTApp.Helpers.Dates.localizeDates();
 
         setDetailsPaneLoaderHeight();
+
+        $("#deviceExplorer_cellInformation").on("click", function () {
+            $('#details_grid_container').empty();
+            displayCellularDetailsView();
+        });
 
         $('#deviceExplorer_authKeys').on('click', function () {
             getDeviceKeys(self.deviceId);
@@ -44,7 +101,7 @@
                 }
 
                 var deviceTable = $('#deviceTable').dataTable();
-                var selectedTableRowStatus = deviceTable.find('.selected').find('td:eq(0)');
+                var selectedTableRowStatus = deviceTable.find('.selected').find('.table_status');
 
                 if (isEnabled) {
                     _enableDisableDetailsLinks(true);
@@ -72,21 +129,88 @@
 
             return false;
         });
+
+        $("#deviceExplorer_removeSimAssociation").on("click", function () {
+            $.ajax({
+                url: '/Advanced/RemoveIccidFromDevice',
+                data: { deviceId: self.deviceId },
+                async: true,
+                type: "post",
+                success: function () {
+                    getDeviceDetailsView(self.deviceId);
+                }
+            });
+        });
+
+        if (localStorage.deviceDetailPanel_deviceDetailHidden === "true") {
+            $(".devicedetails_toggle_target").toggle();
+        }
+
+        if (localStorage.deviceDetailPanel_tagHidden === "true") {
+            $(".tag_toggle_target").toggle();
+        }
+
+        if (localStorage.deviceDetailPanel_desiredPropertyHidden === "true") {
+            $(".desiredproperty_toggle_target").toggle();
+        }
+
+        if (localStorage.deviceDetailPanel_reportedPropertyHidden === "true") {
+            $(".reportedproperty_toggle_target").toggle();
+        }
+
+        if (localStorage.deviceDetailPanel_jobHidden === "true") {
+            $(".job_toggle_target").toggle();
+        }
+
+        $(".devicedetails_toggle_source").on("click", function () {
+            $(".devicedetails_toggle_target").toggle();
+            localStorage.deviceDetailPanel_deviceDetailHidden = $(".devicedetails_toggle_target").css("display") === "none";
+        });
+
+        $(".tag_toggle_source").on("click", function () {
+            $(".tag_toggle_target").toggle();
+            localStorage.deviceDetailPanel_tagHidden = $(".tag_toggle_target").css("display") === "none";
+        });
+
+        $(".desiredproperty_toggle_source").on("click", function () {
+            $(".desiredproperty_toggle_target").toggle();
+            localStorage.deviceDetailPanel_desiredPropertyHidden = $(".desiredproperty_toggle_target").css("display") === "none";
+        });
+
+        $(".reportedproperty_toggle_source").on("click", function () {
+            $(".reportedproperty_toggle_target").toggle();
+            localStorage.deviceDetailPanel_reportedPropertyHidden = $(".reportedproperty_toggle_target").css("display") === "none";
+        });
+
+        $(".job_toggle_source").on("click", function () {
+            $(".job_toggle_target").toggle();
+            localStorage.deviceDetailPanel_jobHidden = $(".job_toggle_target").css("display") === "none";
+        });
+    }
+
+    var onScheduleJobReady = function (html) {
+        $('#loadingElement').hide();
+        $('#details_grid_container').empty();
+        $('#details_grid_container').html(html);
+
+        setDetailsPaneLoaderHeight();
     }
 
     var setDetailsPaneLoaderHeight = function () {
         /* Set the height of the Device Details progress animation background to accommodate scrolling */
-        var progressAnimationHeight = $("#details_grid_container").height() + $(".grid_subhead.button_details_grid").outerHeight();
+        var progressAnimationHeight = $("#details_grid_container").height() + $(".details_grid__grid_subhead.button_details_grid").outerHeight();
 
         $(".loader_container_details").height(progressAnimationHeight);
     };
 
     var _enableDisableDetailsLinks = function (enabled) {
         if (enabled) {
+            $(".link_grid_subheadhead_detail").removeClass("hidden");
             $("#edit_metadata_link").show();
             $('#editConfigLink').show();
             $('#removeDeviceLink').hide();
         } else {
+            $(".link_grid_subheadhead_detail").addClass("hidden");
             $("#edit_metadata_link").hide();
             $('#editConfigLink').hide();
             $('#removeDeviceLink').show();
@@ -133,28 +257,33 @@
         $('#deviceExplorer_authKeys').parent().html(html);
     }
 
-    var renderRetryError = function (errorMessage, container, retryCallback) {
-        var $wrapper = $('<div />');
-        var $paragraph = $('<p />');
-
-        $wrapper.addClass('device_detail_error');
-        $wrapper.append($paragraph);
-        var node = document.createTextNode(errorMessage);
-        $paragraph.append(node);
-
-        var button = $('<button>' + resources.retry + '</button>');
-
-        button.on("click", function () {
-            retryCallback();
+    var loadDeviceJobsInternal = function (deviceId) {
+        $.ajaxSetup({ cache: false });
+        return $.get('/Device/GetDeviceJobs', { deviceId: deviceId }, function (response) {
+            $('#deviceJobGrid').empty();
+            $('#deviceJobGrid').html(response);
         });
+    }
 
-        $wrapper.append(button);
-        container.html($wrapper);
+    var loadDeviceJobs = function (deviceId) {
+        if (self.deviceJobLoader) {
+            self.deviceJobLoader.abort();
+        }
+
+        self.deviceJobLoader = loadDeviceJobsInternal(deviceId);
+    }
+
+    var init = function (deviceId) {
+        self.cachedDeviceHtml = null;
+        getDeviceDetailsView(deviceId);
     }
 
     return {
-        init: function (deviceId) {
-            getDeviceDetailsView(deviceId);
-        }
+        init: init,
+        getCellularDetailsView: getCellularDetailsView,
+        onCellularDetailsDone: onCellularDetailsDone,
+        displayCellularDetailsView: displayCellularDetailsView,
+        scheduleJob: getScheduleJobView,
+        loadDeviceJobs: loadDeviceJobs
     }
 }, [jQuery, resources]);

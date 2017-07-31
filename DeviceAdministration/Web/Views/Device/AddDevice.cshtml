@@ -1,13 +1,14 @@
 ﻿@using GlobalResources
+@using Microsoft.Azure.Devices.Applications.RemoteMonitoring.DeviceAdmin.Web.Helpers
 @{
     ViewBag.Title = "Add a Device";
 }
 
 <header class="header_main">
 
-    <h1 class="header_main_head">@Strings.AddDevice</h1>
-    <button class="button_back" type="button"></button>
-    <h2 class="header_main_subhead">@Strings.StepOneHeader</h2>
+    <h1 class="header_main__head">@Strings.AddDevice</h1>
+    <button class="header_main__button_back" type="button"></button>
+    <h2 class="header_main__subhead">@Strings.StepOneHeader</h2>
 
 </header>
 <div class="content_outer">
@@ -24,8 +25,8 @@
     "use strict";
 
     var addDeviceResources = {
-        addDevice: '@Strings.AddDevice',
-        stepOneHeader: '@Strings.StepOneHeader',
+        addDevice: '@Html.JavaScriptString(Strings.AddDevice)',
+        stepOneHeader: '@Html.JavaScriptString(Strings.StepOneHeader)',
         redirectToIndexUrl: '@Url.Action("Index", "Device")',
         deviceDetailDeviceId: '@ViewBag.DeviceId'
     }
@@ -33,4 +34,4 @@
     $.extend(resources, addDeviceResources);
 </script>
 
-<script type="text/javascript" src="~/Scripts/Views/Device/AddDevice.js"></script>
+<script type="text/javascript" src="~/Scripts/Views/Device/AddDevice.js?ver=@Constants.JSVersion"></script>

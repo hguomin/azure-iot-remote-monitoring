@@ -1,5 +1,8 @@
 ﻿using System.Collections.Generic;
+using System.Globalization;
+using System.Linq;
 using GlobalResources;
+using Microsoft.Azure.Devices.Applications.RemoteMonitoring.DeviceAdmin.Web.Helpers;
 using Microsoft.Azure.Devices.Applications.RemoteMonitoring.DeviceAdmin.Web.Security;
 
 namespace Microsoft.Azure.Devices.Applications.RemoteMonitoring.DeviceAdmin.Web.Navigation
@@ -18,7 +21,7 @@ namespace Microsoft.Azure.Devices.Applications.RemoteMonitoring.DeviceAdmin.Web.
                     Action = "Index",
                     Controller = "Dashboard",
                     Selected = false,
-                    Class = "nav_dashboard",
+                    Class = "navigation__link--dashboard",
                     MinimumPermission = Permission.ViewTelemetry,
                 },
                 new NavigationMenuItem
@@ -27,7 +30,7 @@ namespace Microsoft.Azure.Devices.Applications.RemoteMonitoring.DeviceAdmin.Web.
                     Action = "Index",
                     Controller = "Device",
                     Selected = false,
-                    Class = "nav_devices",
+                    Class = "navigation__link--devices",
                     MinimumPermission = Permission.ViewDevices,
                 },
                 new NavigationMenuItem
@@ -36,7 +39,7 @@ namespace Microsoft.Azure.Devices.Applications.RemoteMonitoring.DeviceAdmin.Web.
                     Action = "Index",
                     Controller = "DeviceRules",
                     Selected = false,
-                    Class = "nav_view_rules",
+                    Class = "navigation__link--rules",
                     MinimumPermission = Permission.ViewRules,
                 },
                 new NavigationMenuItem
@@ -45,8 +48,26 @@ namespace Microsoft.Azure.Devices.Applications.RemoteMonitoring.DeviceAdmin.Web.
                     Action = "Index",
                     Controller = "Actions",
                     Selected = false,
-                    Class = "nav_actions",
+                    Class = "navigation__link--actions",
                     MinimumPermission = Permission.ViewActions,
+                },
+                new NavigationMenuItem
+                {
+                    Text = Strings.NavigationMenuItemJobs,
+                    Action = "Index",
+                    Controller = "Job",
+                    Selected = false,
+                    Class = "navigation__link--jobs",
+                    MinimumPermission = Permission.ViewJobs,
+                },
+                new NavigationMenuItem
+                {
+                    Text = Strings.NavigationMenuItemsAdvanced,
+                    Action = "CellularConn",
+                    Controller = "Advanced",
+                    Selected = false,
+                    Class = "nav_advanced",
+                    MinimumPermission = Permission.CellularConn,
                 },
             };
         }
@@ -57,9 +78,16 @@ namespace Microsoft.Azure.Devices.Applications.RemoteMonitoring.DeviceAdmin.Web.
             {
                 // only show menu items the user has permission for
                 var visibleItems = new List<NavigationMenuItem>();
-                foreach(var menuItem in _navigationMenuItems)
+                foreach (var menuItem in _navigationMenuItems)
                 {
-                    if (PermsChecker.HasPermission(menuItem.MinimumPermission))
+                    var subNavItems = NavigationHelper.GetSubnavigationItemsForController(menuItem.Controller);
+
+                    if ((subNavItems != null) &&
+                        subNavItems.Any(t => PermsChecker.HasPermission(t.MinimumPermission)))
+                    {
+                        visibleItems.Add(menuItem);
+                    }
+                    else if (PermsChecker.HasPermission(menuItem.MinimumPermission))
                     {
                         visibleItems.Add(menuItem);
                     }
@@ -76,7 +104,7 @@ namespace Microsoft.Azure.Devices.Applications.RemoteMonitoring.DeviceAdmin.Web.
                 if (navigationMenuItem.Controller == controllerName && navigationMenuItem.Action == actionName)
                 {
                     navigationMenuItem.Selected = true;
-                    navigationMenuItem.Class = string.Format("{0} {1}", navigationMenuItem.Class, "selected");
+                    navigationMenuItem.Class = string.Format(CultureInfo.InvariantCulture, "{0} {1}", navigationMenuItem.Class, "selected");
                     return navigationMenuItem;
                 }
             }

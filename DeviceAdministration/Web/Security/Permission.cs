@@ -21,6 +21,14 @@
         AssignAction,
         ViewRules,
         EditRules,
-        ViewTelemetry
+        DeleteRules,
+        ViewTelemetry,
+        HealthBeat,
+        LogicApps,
+        CellularConn,
+        ViewJobs,
+        ManageJobs,
+        SaveDeviceListColumnsAsGlobal,
+        DeleteSuggestedClauses
     }
 }
